@@ -19,6 +19,7 @@ import ir.amirab.downloader.downloaditem.hls.HLSDownloadCredentials
 import ir.amirab.downloader.NewDownloadItemProps
 import ir.amirab.downloader.downloaditem.EmptyContext
 import ir.amirab.downloader.downloaditem.http.HttpDownloadCredentials
+import ir.amirab.downloader.downloaditem.ytdlp.YtdlpDownloadCredentials
 import ir.amirab.downloader.queue.QueueManager
 import ir.amirab.downloader.utils.OnDuplicateStrategy
 import org.koin.core.component.KoinComponent
@@ -87,31 +88,45 @@ class IntegrationHandlerImp : IntegrationHandler, KoinComponent {
         }
     }
 
-    companion object {
-        private fun convertToDownloadSystemCredentials(it: IDownloadCredentialsFromIntegration): AddDownloadCredentialsInUiProps {
-            val credentials = when (it) {
-                is HttpDownloadCredentialsFromIntegration -> {
+    // Removed companion object to allow access to Koin injected instances
+    private val youtubeRegex = Regex("^(https?://)?(www\\.)?(youtube\\.com|youtu\\.be)/.*$")
+
+    private fun convertToDownloadSystemCredentials(it: IDownloadCredentialsFromIntegration): AddDownloadCredentialsInUiProps {
+        val credentials = when (it) {
+            is HttpDownloadCredentialsFromIntegration -> {
+                
+                // Instantly check if it's a YouTube link without blocking the thread
+                if (youtubeRegex.matches(it.link)) {
+                    // Route to your yt-dlp engine
+                    YtdlpDownloadCredentials(
+                        link = it.link,
+                        downloadPage = it.downloadPage
+                    )
+                } else {
+                    // Fallback to default HTTP behavior
                     HttpDownloadCredentials(
                         link = it.link,
                         headers = it.headers,
                         downloadPage = it.downloadPage,
                     )
                 }
-
-                is HLSDownloadCredentialsFromIntegration -> {
-                    HLSDownloadCredentials(
-                        link = it.link,
-                        headers = it.headers,
-                        downloadPage = it.downloadPage,
-                    )
-                }
             }
-            return AddDownloadCredentialsInUiProps(
-                credentials = credentials,
-                extraConfig = AddDownloadCredentialsInUiProps.Configs(
-                    suggestedName = it.suggestedName,
+
+            is HLSDownloadCredentialsFromIntegration -> {
+                HLSDownloadCredentials(
+                    link = it.link,
+                    headers = it.headers,
+                    downloadPage = it.downloadPage,
                 )
-            )
+            }
+            else -> error("Unsupported integration credential type")
         }
+        
+        return AddDownloadCredentialsInUiProps(
+            credentials = credentials,
+            extraConfig = AddDownloadCredentialsInUiProps.Configs(
+                suggestedName = it.suggestedName,
+            )
+        )
     }
 }
