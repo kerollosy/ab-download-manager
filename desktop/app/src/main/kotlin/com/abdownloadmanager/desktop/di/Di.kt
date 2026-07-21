@@ -50,6 +50,7 @@ import com.abdownloadmanager.resources.ABDMLanguageResources
 import com.abdownloadmanager.shared.downloaderinui.DownloaderInUiRegistry
 import com.abdownloadmanager.shared.downloaderinui.hls.HLSDownloaderInUi
 import com.abdownloadmanager.shared.downloaderinui.http.HttpDownloaderInUi
+import com.abdownloadmanager.shared.downloaderinui.ytdlp.YtdlpDownloaderInUi
 import com.abdownloadmanager.shared.pagemanager.SettingsPageManager
 import com.abdownloadmanager.shared.repository.BaseAppRepository
 import com.abdownloadmanager.shared.storage.BaseAppSettingsStorage
@@ -121,6 +122,8 @@ import ir.amirab.downloader.downloaditem.hls.HLSDownloader
 import ir.amirab.downloader.downloaditem.http.HttpDownloadCredentials
 import ir.amirab.downloader.downloaditem.http.HttpDownloadItem
 import ir.amirab.downloader.downloaditem.http.HttpDownloader
+import ir.amirab.downloader.downloaditem.ytdlp.YtdlpDownloader
+import ir.amirab.downloader.downloaditem.ytdlp.YtdlpProcessManager
 import ir.amirab.downloader.monitor.DownloadItemStateFactory
 import ir.amirab.downloader.monitor.IDownloadMonitor
 import ir.amirab.downloader.queue.ManualDownloadQueue
@@ -130,6 +133,7 @@ import ir.amirab.util.compose.localizationmanager.LanguageManager
 import ir.amirab.util.compose.localizationmanager.LanguageSourceProvider
 import ir.amirab.util.compose.localizationmanager.LanguageStorage
 import ir.amirab.util.config.datastore.kotlinxSerializationDataStore
+import ir.amirab.util.platform.Platform
 import ir.amirab.util.startup.AbstractStartupManager
 import ir.amirab.util.startup.Startup
 import kotlinx.serialization.modules.SerializersModule
@@ -232,13 +236,29 @@ val downloaderModule = module {
         HttpDownloaderInUi(get(), get())
     }
     single {
+        val definedPaths = get<DefinedPaths>()
+        YtdlpProcessManager.init {
+            val platform = Platform.getCurrentPlatform()
+            val exeName = if (platform == Platform.Desktop.Windows) "yt-dlp.exe" else "yt-dlp"
+            definedPaths.systemDir.resolve(exeName).toString()
+        }
+        YtdlpDownloader {
+            YtdlpProcessManager.getExePath()
+        }
+    }
+    single {
+        YtdlpDownloaderInUi(get(), get())
+    }
+    single {
         DownloaderInUiRegistry().apply {
+            add(get<YtdlpDownloaderInUi>())
             add(get<HttpDownloaderInUi>())
             add(get<HLSDownloaderInUi>())
         }
     }.bind<DownloadItemStateFactory<IDownloadItem, DownloadJob>>()
     single {
         DownloaderRegistry().apply {
+            add(get<YtdlpDownloader>())
             add(get<HttpDownloader>())
             add(get<HLSDownloader>())
         }

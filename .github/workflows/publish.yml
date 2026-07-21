@@ -16,7 +16,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up JBR
         uses: actions/setup-java@v4
@@ -39,12 +39,28 @@ jobs:
 
       - name: Skip Android build (build android only on Ubuntu)
         if: matrix.os != 'ubuntu-latest'
-        shell: "bash"
+        shell: bash
         run: |
           echo "SKIP_ANDROID_BUILD=true" >> $GITHUB_ENV
 
-      - name: Use Android Secrets
+      - name: Detect Android secrets availability
         if: matrix.os == 'ubuntu-latest'
+        shell: bash
+        env:
+          SECRET_ABDM_KEYSTORE_FILE: ${{ secrets.ABDM_KEYSTORE_FILE }}
+          SECRET_ABDM_KEYSTORE_FILE_PASSWORD: ${{ secrets.ABDM_KEYSTORE_FILE_PASSWORD }}
+          SECRET_ABDM_KEYSTORE_KEY_ALIAS: ${{ secrets.ABDM_KEYSTORE_KEY_ALIAS }}
+          SECRET_ABDM_KEYSTORE_KEY_PASSWORD: ${{ secrets.ABDM_KEYSTORE_KEY_PASSWORD }}
+        run: |
+          if [ -n "$SECRET_ABDM_KEYSTORE_FILE" ] && [ -n "$SECRET_ABDM_KEYSTORE_FILE_PASSWORD" ] && [ -n "$SECRET_ABDM_KEYSTORE_KEY_ALIAS" ] && [ -n "$SECRET_ABDM_KEYSTORE_KEY_PASSWORD" ]; then
+            echo "HAS_ANDROID_SECRETS=true" >> $GITHUB_ENV
+          else
+            echo "HAS_ANDROID_SECRETS=false" >> $GITHUB_ENV
+            echo "SKIP_ANDROID_BUILD=true" >> $GITHUB_ENV
+          fi
+
+      - name: Use Android Secrets
+        if: matrix.os == 'ubuntu-latest' && env.HAS_ANDROID_SECRETS == 'true'
         run: |
           echo "ABDM_KEYSTORE_FILE=${{ secrets.ABDM_KEYSTORE_FILE }}" >> $GITHUB_ENV
           echo "ABDM_KEYSTORE_FILE_PASSWORD=${{ secrets.ABDM_KEYSTORE_FILE_PASSWORD }}" >> $GITHUB_ENV
@@ -60,7 +76,7 @@ jobs:
       - name: Gradle
         run: |
           ./gradlew
-        shell: "bash"
+        shell: bash
 
       - name: Build package for current OS using gradle
         shell: bash
