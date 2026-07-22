@@ -6,7 +6,7 @@ import ir.amirab.downloader.downloaditem.ytdlp.YtdlpDownloadItem
 
 object YtdlpCredentialsToItemMapper : CredentialAndItemMapper<YtdlpDownloadCredentials, YtdlpDownloadItem> {
     override fun itemToCredentials(item: YtdlpDownloadItem): YtdlpDownloadCredentials {
-        return YtdlpDownloadCredentials(item.link, item.downloadPage)
+        return YtdlpDownloadCredentials(item.link, item.downloadPage, item.quality)
     }
 
     override fun appliedCredentialsToItem(
@@ -15,7 +15,8 @@ object YtdlpCredentialsToItemMapper : CredentialAndItemMapper<YtdlpDownloadCrede
     ): YtdlpDownloadItem {
         return item.copy(
             link = credentials.link,
-            downloadPage = credentials.downloadPage
+            downloadPage = credentials.downloadPage,
+            quality = credentials.quality,
         )
     }
 

@@ -81,12 +81,15 @@ class YtdlpDownloadJob(
                 }
                 val exePath = exeFile.absolutePath
 
-                // Ensure the filename extension is .mp4
+                // Make sure the filename extension matches what yt-dlp will actually produce:
+                // .mp3 for audio-only downloads, .mp4 for everything else.
+                val isAudioOnly = downloadItem.quality.audioOnly
+                val targetExtension = if (isAudioOnly) "mp3" else "mp4"
                 val currentName = downloadItem.name
-                val ext = currentName.substringAfterLast('.', "")
-                if (ext.lowercase() in listOf("webm", "mkv", "3gp", "flv", "ogg", "avi", "mov", "wmv", "")) {
-                    val baseName = if (ext.isEmpty()) currentName else currentName.substringBeforeLast('.')
-                    downloadItem.name = "$baseName.mp4"
+                val currentExt = currentName.substringAfterLast('.', "")
+                if (currentExt.lowercase() != targetExtension) {
+                    val baseName = if (currentExt.isEmpty()) currentName else currentName.substringBeforeLast('.')
+                    downloadItem.name = "$baseName.$targetExtension"
                     saveState()
                     initializeDestination()
                 }
@@ -102,17 +105,33 @@ class YtdlpDownloadJob(
 
                 withContext(Dispatchers.IO) {
                     val ffmpegDir = exeFile.parentFile?.absolutePath ?: File(".").absolutePath
-                    val pb = ProcessBuilder(
-                        exePath,
-                        "--ffmpeg-location", ffmpegDir,
-                        "--remux-video", "mp4",
-                        "--merge-output-format", "mp4",
-                        "--newline",
-                        "--progress",
-                        "--no-playlist",
-                        "-o", File(downloadItem.folder, downloadItem.name).absolutePath,
-                        downloadItem.link
-                    )
+                    val outputTemplate = File(downloadItem.folder, downloadItem.name).absolutePath
+                    val pb = if (isAudioOnly) {
+                        ProcessBuilder(
+                            exePath,
+                            "--ffmpeg-location", ffmpegDir,
+                            "-f", "bestaudio/best",
+                            "-x", "--audio-format", "mp3",
+                            "--newline",
+                            "--progress",
+                            "--no-playlist",
+                            "-o", outputTemplate,
+                            downloadItem.link
+                        )
+                    } else {
+                        ProcessBuilder(
+                            exePath,
+                            "--ffmpeg-location", ffmpegDir,
+                            "-f", downloadItem.quality.toFormatSelector(),
+                            "--remux-video", "mp4",
+                            "--merge-output-format", "mp4",
+                            "--newline",
+                            "--progress",
+                            "--no-playlist",
+                            "-o", outputTemplate,
+                            downloadItem.link
+                        )
+                    }
                     pb.redirectErrorStream(true)
                     val proc = pb.start()
                     process = proc

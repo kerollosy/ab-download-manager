@@ -28,6 +28,7 @@ data class YtdlpDownloadItem(
     var username: String? = null,
     var password: String? = null,
     var userAgent: String? = null,
+    var quality: YtdlpQuality = YtdlpQuality.Default,
 ) : IDownloadItem {
     override fun copy(
         id: Option<Long>,
@@ -79,7 +80,8 @@ data class YtdlpDownloadItem(
         return if (credentials is YtdlpDownloadCredentials) {
             copy(
                 link = credentials.link,
-                downloadPage = credentials.downloadPage
+                downloadPage = credentials.downloadPage,
+                quality = credentials.quality,
             )
         } else {
             this
@@ -119,6 +121,7 @@ data class YtdlpDownloadItem(
                 preferredConnectionCount = preferredConnectionCount,
                 speedLimit = speedLimit,
                 fileChecksum = fileChecksum,
+                quality = credentials.quality,
             )
         }
     }

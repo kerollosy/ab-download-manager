@@ -11,6 +11,7 @@ import kotlinx.serialization.Serializable
 data class YtdlpDownloadCredentials(
     override val link: String,
     override val downloadPage: String? = null,
+    val quality: YtdlpQuality = YtdlpQuality.Default,
 ) : IDownloadCredentials {
     override fun validateCredentials() {
         require(link.isNotBlank()) { "url is not valid" }
