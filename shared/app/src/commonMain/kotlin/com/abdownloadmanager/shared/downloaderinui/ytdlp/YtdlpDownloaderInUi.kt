@@ -11,6 +11,7 @@ import com.abdownloadmanager.shared.downloaderinui.ytdlp.edit.YtdlpEditDownloadC
 import com.abdownloadmanager.shared.downloaderinui.ytdlp.edit.YtdlpEditDownloadInputs
 import com.abdownloadmanager.shared.util.SizeAndSpeedUnitProvider
 import com.abdownloadmanager.shared.util.DownloadSystem
+import ir.amirab.downloader.downloaditem.DownloadJobStatus
 import ir.amirab.downloader.downloaditem.IDownloadCredentials
 import ir.amirab.downloader.downloaditem.ytdlp.YtdlpDownloadItem
 import ir.amirab.downloader.downloaditem.ytdlp.YtdlpDownloadCredentials
@@ -18,9 +19,13 @@ import ir.amirab.downloader.downloaditem.ytdlp.YtdlpDownloadJob
 import ir.amirab.downloader.downloaditem.ytdlp.YtdlpDownloader
 import ir.amirab.downloader.downloaditem.ytdlp.YtdlpResponseInfo
 import ir.amirab.downloader.monitor.CompletedDownloadItemState
+import ir.amirab.downloader.monitor.DurationBasedProcessingDownloadItemState
 import ir.amirab.downloader.monitor.ProcessingDownloadItemFactoryInputs
 import ir.amirab.downloader.monitor.ProcessingDownloadItemState
 import ir.amirab.downloader.monitor.RangeBasedProcessingDownloadItemState
+import ir.amirab.downloader.monitor.UiDurationBasedPart
+import ir.amirab.downloader.part.PartDownloadStatus
+import ir.amirab.downloader.utils.calcPercent
 import ir.amirab.util.compose.StringSource
 import ir.amirab.util.compose.asStringSource
 import kotlinx.coroutines.CoroutineScope
