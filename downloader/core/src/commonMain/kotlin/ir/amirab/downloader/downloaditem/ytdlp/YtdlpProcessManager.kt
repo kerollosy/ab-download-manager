@@ -11,6 +11,13 @@ import java.net.URL
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
+
+class FfmpegNotFoundException : Exception(
+    "ffmpeg was not found. Install it and make sure it's on your system PATH " +
+    "(e.g. 'winget install ffmpeg' on Windows, 'brew install ffmpeg' on macOS, " +
+    "'sudo apt install ffmpeg' on Linux), then try again."
+)
+
 object YtdlpProcessManager {
     private var exePathProvider: (() -> String)? = null
 
@@ -22,23 +29,39 @@ object YtdlpProcessManager {
         return exePathProvider?.invoke() ?: "yt-dlp"
     }
 
-    private fun isFfmpegAvailable(ytDlpDir: File): Boolean {
-        val platform = Platform.getCurrentPlatform()
-        val ffmpegExeName = if (platform == Platform.Desktop.Windows) "ffmpeg.exe" else "ffmpeg"
-        
-        // 1. Check if ffmpeg exists in the same directory as yt-dlp
-        if (File(ytDlpDir, ffmpegExeName).exists()) {
-            return true
-        }
-        
-        // 2. Check if ffmpeg is in system PATH
+    private fun ffmpegExeName(): String {
+        return if (Platform.getCurrentPlatform() == Platform.Desktop.Windows) "ffmpeg.exe" else "ffmpeg"
+    }
+
+    private fun isFfmpegOnSystemPath(): Boolean {
         return try {
-            val process = ProcessBuilder(ffmpegExeName, "-version").start()
+            val process = ProcessBuilder(ffmpegExeName(), "-version").start()
+            process.waitFor()
             process.destroy()
             true
         } catch (e: Exception) {
             false
         }
+    }
+
+    private fun isFfmpegAvailable(ytDlpDir: File): Boolean {
+        // 1. Check if ffmpeg exists in the same directory as yt-dlp
+        if (File(ytDlpDir, ffmpegExeName()).exists()) {
+            return true
+        }
+        // 2. Check if ffmpeg is in system PATH
+        return isFfmpegOnSystemPath()
+    }
+
+    fun resolveFfmpegLocationArg(): File? {
+        val ytDlpDir = File(getExePath()).parentFile ?: File(".")
+        if (File(ytDlpDir, ffmpegExeName()).exists()) {
+            return ytDlpDir
+        }
+        if (isFfmpegOnSystemPath()) {
+            return null
+        }
+        throw FfmpegNotFoundException()
     }
 
     suspend fun ensureExecutableInstalled(onProgress: (Double) -> Unit = {}): File {

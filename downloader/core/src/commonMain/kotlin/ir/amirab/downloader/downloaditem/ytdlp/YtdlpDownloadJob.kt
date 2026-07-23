@@ -104,12 +104,15 @@ class YtdlpDownloadJob(
                 onDownloadResumed()
 
                 withContext(Dispatchers.IO) {
-                    val ffmpegDir = exeFile.parentFile?.absolutePath ?: File(".").absolutePath
+                    val ffmpegLocationDir = YtdlpProcessManager.resolveFfmpegLocationArg()
                     val outputTemplate = File(downloadItem.folder, downloadItem.name).absolutePath
-                    val pb = if (isAudioOnly) {
-                        ProcessBuilder(
-                            exePath,
-                            "--ffmpeg-location", ffmpegDir,
+
+                    val args = mutableListOf(exePath)
+                    if (ffmpegLocationDir != null) {
+                        args += listOf("--ffmpeg-location", ffmpegLocationDir.absolutePath)
+                    }
+                    args += if (isAudioOnly) {
+                        listOf(
                             "-f", "bestaudio/best",
                             "-x", "--audio-format", "mp3",
                             "--newline",
@@ -119,9 +122,7 @@ class YtdlpDownloadJob(
                             downloadItem.link
                         )
                     } else {
-                        ProcessBuilder(
-                            exePath,
-                            "--ffmpeg-location", ffmpegDir,
+                        listOf(
                             "-f", downloadItem.quality.toFormatSelector(),
                             "--remux-video", "mp4",
                             "--merge-output-format", "mp4",
@@ -132,6 +133,7 @@ class YtdlpDownloadJob(
                             downloadItem.link
                         )
                     }
+                    val pb = ProcessBuilder(args)
                     pb.redirectErrorStream(true)
                     val proc = pb.start()
                     process = proc
@@ -140,7 +142,6 @@ class YtdlpDownloadJob(
                     var line: String?
 
                     val percentRegex = """([\d.]+)%""".toRegex()
-                    val speedRegex = """at\s+([\d.]+)(\w+)/s""".toRegex()
                     val sizeRegex = """of\s+~?([\d.]+)(\w+)""".toRegex()
 
                     val outputLog = mutableListOf<String>()
@@ -173,6 +174,19 @@ class YtdlpDownloadJob(
                     if (exitCode != 0) {
                         val errorLog = outputLog.joinToString("\n")
                         throw Exception("yt-dlp exited with non-zero exit code: $exitCode. Output:\n$errorLog")
+                    }
+
+                    // yt-dlp can exit 0 even when merging or MP3 extraction was silently
+                    // skipped (it just warns instead of failing outright when it can't find
+                    // ffmpeg). Treat a missing final file as a real failure rather than
+                    // reporting success with a broken/incomplete download.
+                    if (!File(outputTemplate).exists()) {
+                        val errorLog = outputLog.joinToString("\n")
+                        throw Exception(
+                            "yt-dlp finished but the expected output file was not created " +
+                            "(this usually means ffmpeg could not be found " +
+                            "Output:\n$errorLog"
+                        )
                     }
                 }
                 onDownloadFinished()
