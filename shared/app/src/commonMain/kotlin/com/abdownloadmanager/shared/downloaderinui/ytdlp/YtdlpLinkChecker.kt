@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.longOrNull
@@ -31,8 +32,9 @@ class YtdlpLinkChecker(
     override fun infoUpdated(responseInfo: YtdlpResponseInfo?) {
         if (responseInfo != null) {
             val title = responseInfo.title ?: "video"
-            val ext = responseInfo.ext ?: "mp4"
-            val targetExt = if (ext.lowercase() in listOf("webm", "mkv", "3gp", "flv", "ogg", "avi", "mov", "wmv")) "mp4" else ext
+            // The ext we get back here is already the *final* extension we intend
+            // to produce (mp4 for video, mp3 for audio-only) - see actualCheck().
+            val targetExt = responseInfo.ext ?: "mp4"
             _suggestedName.value = "$title.$targetExt"
             _downloadSize.value = if (responseInfo.size > 0) DownloadSize.Bytes(responseInfo.size) else null
         } else {
@@ -44,11 +46,13 @@ class YtdlpLinkChecker(
     override suspend fun actualCheck(credentials: YtdlpDownloadCredentials): YtdlpResponseInfo {
         return withContext(Dispatchers.IO) {
             YtdlpProcessManager.ensureExecutableInstalled()
+            val quality = credentials.quality
+            val formatArgs = if (quality.audioOnly) listOf("-f", "bestaudio/best")
+                            else listOf("-f", quality.toFormatSelector())
+
             val proc = ProcessBuilder(
-                YtdlpProcessManager.getExePath(),
-                "--dump-json",
-                "--no-playlist",
-                credentials.link
+                listOf(YtdlpProcessManager.getExePath(), "--dump-json", "--no-playlist") +
+                    formatArgs + listOf(credentials.link)
             ).start()
             val reader = BufferedReader(InputStreamReader(proc.inputStream))
             val sb = java.lang.StringBuilder()
@@ -68,16 +72,19 @@ class YtdlpLinkChecker(
             val jsonString = sb.toString()
             val jsonObject = Json.parseToJsonElement(jsonString).jsonObject
             val title = jsonObject["title"]?.jsonPrimitive?.content
-            val ext = jsonObject["ext"]?.jsonPrimitive?.content
-            val size = jsonObject["filesize"]?.jsonPrimitive?.longOrNull
-                ?: jsonObject["filesize_approx"]?.jsonPrimitive?.longOrNull
-                ?: -1L
-            YtdlpResponseInfo(
-                isSuccessFul = true,
-                title = title,
-                ext = ext,
-                size = size
-            )
+
+            val requestedDownloads = jsonObject["requested_downloads"]?.jsonArray
+            val size = requestedDownloads
+                ?.sumOf {
+                    it.jsonObject["filesize"]?.jsonPrimitive?.longOrNull
+                        ?: it.jsonObject["filesize_approx"]?.jsonPrimitive?.longOrNull ?: 0L
+                }
+                ?.takeIf { it > 0 }
+                ?: (jsonObject["filesize"]?.jsonPrimitive?.longOrNull
+                    ?: jsonObject["filesize_approx"]?.jsonPrimitive?.longOrNull ?: -1L)
+
+            val ext = if (quality.audioOnly) "mp3" else "mp4"  // matches what the job will actually produce
+            YtdlpResponseInfo(isSuccessFul = true, title = title, ext = ext, size = size)
         }
     }
 }

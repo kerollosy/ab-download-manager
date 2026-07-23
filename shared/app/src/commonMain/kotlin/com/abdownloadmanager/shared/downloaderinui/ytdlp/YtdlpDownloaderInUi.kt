@@ -147,24 +147,44 @@ class YtdlpDownloaderInUi(
         )
     }
 
-    override fun createProcessingDownloadItemState(props: ProcessingDownloadItemFactoryInputs<YtdlpDownloadJob>): ProcessingDownloadItemState {
+    override fun createProcessingDownloadItemState(
+        props: ProcessingDownloadItemFactoryInputs<YtdlpDownloadJob>
+    ): ProcessingDownloadItemState {
         val job = props.downloadJob
         val item = job.downloadItem
-        return RangeBasedProcessingDownloadItemState(
+        val progress = job.getDownloadedSize()
+        val contentLength = item.contentLength
+        val percent = if (contentLength > 0) calcPercent(progress, contentLength) else 0
+
+        return DurationBasedProcessingDownloadItemState(
             id = item.id,
             folder = item.folder,
             name = item.name,
-            contentLength = item.contentLength,
+            downloadLink = item.link,
+            contentLength = contentLength,
+            saveLocation = item.name,
             dateAdded = item.dateAdded,
             startTime = item.startTime ?: -1,
             completeTime = item.completeTime ?: -1,
             status = job.status.value,
-            saveLocation = item.name,
-            parts = emptyList(),
             speed = props.speed,
-            supportResume = true,
-            downloadLink = item.link,
-            isWaiting = props.isWaiting
+            parts = listOf(
+                UiDurationBasedPart(
+                    id = 0,
+                    status = if (job.status.value is DownloadJobStatus.IsActive)
+                        PartDownloadStatus.ReceivingData else PartDownloadStatus.IDLE,
+                    howMuchProceed = progress,
+                    percent = percent,
+                    length = contentLength.takeIf { it > 0 },
+                    partSpace = 1f
+                )
+            ),
+            supportResume = false,        // a mid-stream yt-dlp process can't resume like an HTTP range request
+            optimisticLength = -1,
+            duration = null,
+            progress = progress,
+            percent = percent,
+            isWaiting = props.isWaiting,
         )
     }
 
